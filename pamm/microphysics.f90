@@ -30,7 +30,7 @@
             p_initialise_aerosol_3d,p_initialise_aerosol, p_initialise_aerosol_1d, &
             calculate_gamma_params
             
-    real(wp) :: mrthresh, mrupper, miupper, f_mode2, lambda0r, lambda0i, n0r, n0i, &
+    real(wp) :: mrthresh, mithresh, mrupper, miupper, f_mode2, lambda0r, lambda0i, n0r, n0i, &
             pthreshr, pthreshi
     real(wp), parameter :: phi_mode2=0.35_wp, probthresh=0.9999_wp, grav=9.81_wp
     
@@ -536,9 +536,9 @@
         real(wp), dimension(:), allocatable :: act_frac1 , dcrit
          
         
-        allocate(act_frac1(1:n_mode))
+        allocate(act_frac1(1:n_mode), stat=AllocateStatus)
         if(AllocateStatus /= 0) STOP "*** Not enough memory ***"
-        allocate(dcrit(1:n_mode))
+        allocate(dcrit(1:n_mode), stat=AllocateStatus)
         if(AllocateStatus /= 0) STOP "*** Not enough memory ***"
         
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -676,9 +676,9 @@
         real(wp), dimension(:), allocatable :: act_frac1 , dcrit
          
         
-        allocate(act_frac1(1:n_mode))
+        allocate(act_frac1(1:n_mode), stat=AllocateStatus)
         if(AllocateStatus /= 0) STOP "*** Not enough memory ***"
-        allocate(dcrit(1:n_mode))
+        allocate(dcrit(1:n_mode), stat=AllocateStatus)
         if(AllocateStatus /= 0) STOP "*** Not enough memory ***"
         
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -815,9 +815,9 @@
         real(wp), dimension(:), allocatable :: act_frac1 , dcrit
          
         
-        allocate(act_frac1(1:n_mode))
+        allocate(act_frac1(1:n_mode), stat=AllocateStatus)
         if(AllocateStatus /= 0) STOP "*** Not enough memory ***"
-        allocate(dcrit(1:n_mode))
+        allocate(dcrit(1:n_mode), stat=AllocateStatus)
         if(AllocateStatus /= 0) STOP "*** Not enough memory ***"
         
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2092,7 +2092,6 @@
 		! condensation of liquid water                                                   !
 		!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		! smr at 0c
-		!q0sat=eps1*svp_liq(ttr)/(p(k)-svp_liq(ttr))
 		q0sat=eps1*svp_liq(ttr)/(p(k)-svp_liq(ttr))
     	smr(k)=eps1*svp_liq(t(k))/(p(k)-svp_liq(t(k))) ! saturation mixing ratio
         
@@ -2110,7 +2109,6 @@
 		
 		tc=t(k)-ttr
     	smr(k)=eps1*svp_liq(t(k))/(p(k)-svp_liq(t(k))) ! saturation mixing ratio
-    	q0sat=smr(k)	
     	smr_i(k)=eps1*svp_ice(t(k))/(p(k)-svp_ice(t(k))) ! saturation mixing ratio - ice	
     	
     	cond=(q(k,iqc)-qold)
@@ -2197,6 +2195,7 @@
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             act_frac1=max(act_frac1,0._wp)
+!             act_frac1=1000.0e6_wp/sum(n_aer1*act_frac1)*act_frac1
             temp1=sum(n_aer1*act_frac1)
             ! put in-cloud aerosol into aerosol - i.e. remove it first
             do i=1,n_mode-1
@@ -2339,7 +2338,7 @@
                 ! n_frag_m1c (collisional) is a delta
                 call mode1_sip_collisional(lam_r(k), lam_i(k), t(k), n_r(k), n_i(k), &
                     q(k,iqi), q(k,iqi+2), q(k,iqi+4), q(k,iqr), &
-                    a_hw1(k), pre_hw(k), dt, heyms_west, nfrag_m1c(k))
+                    a_hw1(k), pre_hw(k), rho(k), dt, heyms_west, nfrag_m1c(k))
             endif
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             
@@ -2351,7 +2350,7 @@
                 ! n_frag_m2 is a delta
                 call mode2_sip_collisional(lam_r(k), lam_i(k), t(k), n_r(k), n_i(k), &
                     q(k,iqi), q(k,iqi+2), q(k,iqi+4), q(k,iqr), &
-                    a_hw1(k), pre_hw(k), dt, heyms_west, nfrag_m2(k))
+                    a_hw1(k), pre_hw(k), rho(k), dt, heyms_west, nfrag_m2(k))
             endif
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -2363,7 +2362,7 @@
             if (t(k).lt.268._wp) &
             call ice2_sip_collisional(lam_i(k), t(k), n_i(k), &
                 q(k,ini), q(k,iqi), q(k,iqi+2), q(k,iqi+4), q(k,iqi+1), &
-                a_hw1(k), pre_hw(k), dt, heyms_west, nfrag_ii(k),coll_breakup_flag1)
+                a_hw1(k), pre_hw(k), rho(k), dt, heyms_west, nfrag_ii(k),coll_breakup_flag1)
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -2555,6 +2554,9 @@
         ! 12. warm rain autoconversion based on Seifert and Beheng (2006)                !
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		if (wr_flag) then
+!         if(q(k,iqc).gt.qsmall) then
+!         	q(k,inc)=1000.e6
+!         endif
             call seifert_beheng(sb_aut,sb_acr, sb_cwaut, sb_cwacr, sb_raut, &
                         sb_rsel, sb_cwsel, q(k,cst(cat_c)+1),q(k,cst(cat_c)),&
                         q(k,cst(cat_r)+1),q(k,cst(cat_r)),rho(k),dt)
@@ -2744,8 +2746,7 @@
         q(k,iqc)=q(k,iqc)-(praut(k)+pracw(k)+pifrw(k))*dt
        
         ! rain number - rraut, rrsel are negative
-        q(k,cst(cat_r))=q(k,cst(cat_r))+(rraut(k)+rrsel(k)-pgfr(k)* &
-            q(k,cst(cat_r))/(q(k,cst(cat_r)+1)+qsmall))*dt
+        q(k,cst(cat_r))=q(k,cst(cat_r))+(rraut(k)+rrsel(k))*dt
 
         ! rain mass
         q(k,cst(cat_r)+1)=q(k,cst(cat_r)+1)+(praut(k)+pracw(k)-(pgfr(k)))*dt
@@ -2870,7 +2871,7 @@
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 ! h-m process                                                            !
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                if((t(k).le.(ttr-2.0_wp)).or.(t(k).ge.(ttr-9.0_wp))) then
+                if((t(k).le.(ttr-2.0_wp)).and.(t(k).ge.(ttr-9.0_wp))) then
 
                     if(hm_flag) then
                         rihal(k)=max(hm_rate*piacw(k)*hm_func(t(k)),0._wp)
@@ -2960,6 +2961,9 @@
             q(k,1)=q(k,1)+q(k,iqc)
             q(k,inc:iqc) = 0.0_wp
         endif
+!         if(q(k,iqc).gt.qsmall) then
+!         	q(k,inc)=1000.e6
+!         endif
         
 
 
@@ -3740,7 +3744,7 @@
             return
         endif
     
-        d = (6._wp*min1/rhow)**(1._wp/3._wp)
+        d = (6._wp*min1/(pi*rhow))**(1._wp/3._wp)
         tc=t-ttr
         dthresh = min(d,1.6e-3)
         x = log10(dthresh*1000._wp)
@@ -3759,8 +3763,8 @@
         sigma = min(max((d-50.e-6_wp)/10.e-6_wp,0._wp), 1._wp)
         omega = min(max((-3._wp-tc)/3._wp,0._wp),1._wp)
         
-        n = sigma*omega*(10._wp**log10zeta *(10**log10nabla)**2) / &
-            ((tc-t0)**2+(10._wp*log10nabla)**2+beta1*tc)
+        n = sigma*omega*(10._wp**log10zeta *(10._wp**log10nabla)**2) / &
+            ((tc-t0)**2+(10._wp**log10nabla)**2+beta1*tc)
         
         ! total number of fragments
         n=n*d/dthresh
@@ -3777,7 +3781,11 @@
         ! mass of small fragments
         mt=oneoversix*rhoi*pi*dtt**3
         
-        fac1=min((mt*nt+mb*nb)/min1,1._wp)
+        if ((mt*nt+mb*nb) > 0._wp) then
+            fac1=min(min1/(mt*nt+mb*nb),1._wp)
+        else
+            fac1=1._wp
+        endif
         nt = nt *fac1
         nb = nb *fac1
         n=nt+nb
@@ -4000,12 +4008,29 @@
     end function limit2_coll
 
 
+
+    function limit1_coll_ri(x)
+        use numerics_type, only : wp
+        implicit none
+        real(wp), intent(in) :: x
+        real(wp) :: limit1_coll_ri
+        limit1_coll_ri=mithresh
+    end function limit1_coll_ri
+!
+    function limit2_coll_ri(x)
+        use numerics_type, only : wp
+        implicit none
+        real(wp), intent(in) :: x
+        real(wp) :: limit2_coll_ri
+        limit2_coll_ri=miupper
+    end function limit2_coll_ri
+!
     function limit1_mode1(x)
         use numerics_type, only : wp
         implicit none
         real(wp), intent(in) :: x
         real(wp) :: limit1_mode1
-        limit1_mode1=mrthresh
+        limit1_mode1=mithresh
     end function limit1_mode1
 !
     function limit2_mode1(x)
@@ -4013,7 +4038,7 @@
         implicit none
         real(wp), intent(in) :: x
         real(wp) :: limit2_mode1
-        limit2_mode1=x
+        limit2_mode1=min(x,miupper)
     end function limit2_mode1
 
 
@@ -4030,7 +4055,7 @@
         implicit none
         real(wp), intent(in) :: x
         real(wp) :: limit1_collisional
-        limit1_collisional=1.e-6_wp
+        limit1_collisional=mrthresh
     end function limit1_collisional
 !
     function limit2_mode2(x)
@@ -4075,6 +4100,7 @@
         ! assume a coefficient of restitution of 0.5?
         ! units are g cm s-1
         delm = 0.25_wp*pi*mr*mi/(mr+mi)*(1._wp+0.5_wp)*abs(vr-vi)*1.e5_wp 
+        delm = min(max(delm,exp(-vard02(2)/(2*vard02(1)))),1._wp)
         nfrag = vard02(1)*(log(delm)**2)+vard02(2)*log(delm)+vard02(3)
         
         dintegral_collisional_breakup = dintegral_collisional_breakup * nfrag
@@ -4187,10 +4213,10 @@
         
         ! calculate the max length of the ice crystals
         twicea1 = (6._wp*vol1 / (pi*phi1))**oneoverthree
-        dmax1 = max(twicea1, dmax1*phi1  )
+        dmax1 = max(twicea1, twicea1*phi1)
         
         twicea2=(6._wp*vol2 / (pi*phi2))**oneoverthree
-        dmax2 = max(twicea2, dmax2*phi2  )
+        dmax2 = max(twicea2, twicea2*phi2)
         
         ! calculate the max dimension of the particle assuming rime fills in like a sphere
         dmax1=max(dmax1,  &
@@ -4276,8 +4302,8 @@
             
                 endif
             else
-                alpha=0._wp
-                nmax=0._wp            
+                nfrag(i)=0._wp
+                cycle
             endif
             ! CKE
             k0(i) = 0.5_wp*(mr*mi(i)/(mr+mi(i)))*(vr-vi(i))**2
@@ -4369,8 +4395,12 @@
                 
         ! actual integrals
         riaci=0._wp
-        ci_new=pi/6._wp*min(910._wp, &
-            qi/(vol_xtal+rime_m/500._wp))
+        if((qi.gt.qsmall).and.((vol_xtal+rime_m/500._wp).gt.0._wp)) then
+            ci_new=pi/6._wp*min(910._wp, &
+                qi/(vol_xtal+rime_m/500._wp))
+        else
+            ci_new=ci
+        endif
         lambda0i=lam_i
         mrthresh=ci_new*1.e-6_wp**di
         mrupper=ci_new*(pthreshi/lambda0i)**di
@@ -4382,6 +4412,7 @@
             pre_hw_new=pre_hw
             call quad2d_qgaus(dintegral_coll_ice_num_hw, &
                 limit1_coll,limit2_coll,mrthresh,mrupper,riaci)
+            riaci=0.5_wp*riaci/rho
          endif
                 
 			
@@ -4443,38 +4474,45 @@
             
                 
                 
-        ! actual integrals
-        riacr=0._wp
-        piacr=0._wp
-        praci=0._wp
-        lambda0r=lam_r
-        lambda0i=lam_i
-        mrthresh=cr*1.e-6_wp**dr
-        mrupper=cr*(pthreshr/lambda0r)**dr
-        miupper=ci*(pthreshi/lambda0i)**di
-        mrupper=min(mrupper,miupper)
-        ! only call integral if mrupper gt mrthresh
-        if((mrupper.gt.mrthresh).and.(qr.gt.qsmall) .and.(qi.gt.qsmall)) then
-            n0r=n_r
-            n0i=n_i
-
-            if(heyms_west) then
+        ! numerical Heymsfield-West integrals.  Keep the analytic rates above
+        ! unchanged when heyms_west is false.
+        if(heyms_west) then
+            riacr=0._wp
+            piacr=0._wp
+            praci=0._wp
+            lambda0r=lam_r
+            lambda0i=lam_i
+            mrthresh=cr*1.e-6_wp**dr
+            mrupper=cr*(pthreshr/lambda0r)**dr
+            if((qi.gt.qsmall).and.((vol_xtal+rime_m/500._wp).gt.0._wp)) then
                 ci_new=pi/6._wp*min(910._wp, &
                     qi/(vol_xtal+rime_m/500._wp))
+            else
+                ci_new=ci
+            endif
+            mithresh=ci_new*1.e-6_wp**di
+            miupper=ci_new*(pthreshi/lambda0i)**di
+            ! only call integral if both mass domains are non-empty
+            if((mrupper.gt.mrthresh).and.(miupper.gt.mithresh).and. &
+               (qr.gt.qsmall).and.(qi.gt.qsmall)) then
+                n0r=n_r
+                n0i=n_i
                 a_hw_new=a_hw1
                 pre_hw_new=pre_hw
                 call quad2d_qgaus(dintegral_coll_num_hw, &
-                    limit1_coll,limit2_coll,mrthresh,mrupper,riacr)
-                call quad2d_qgaus(dintegral_coll_mass1_hw, &
-                    limit1_coll,limit2_coll,mrthresh,mrupper,praci)
+                    limit1_coll_ri,limit2_coll_ri,mrthresh,mrupper,riacr)
+                ! rain mass collected by ice
                 call quad2d_qgaus(dintegral_coll_mass2_hw, &
-                    limit1_coll,limit2_coll,mrthresh,mrupper,piacr)
-!             else
-!                 call quad2d_qgaus(dintegral_mode1, &
-!                     limit1_mode1,limit2_mode1,mrthresh,mrupper,dummy3)                    
+                    limit1_coll_ri,limit2_coll_ri,mrthresh,mrupper,praci)
+                ! ice mass associated with the same collisions
+                call quad2d_qgaus(dintegral_coll_mass1_hw, &
+                    limit1_coll_ri,limit2_coll_ri,mrthresh,mrupper,piacr)
+                riacr=riacr/rho
+                praci=praci/rho
+                piacr=piacr/rho
             endif
-         endif
-        rraci=riacr
+            rraci=riacr
+        endif
                 
 			
     end subroutine collisions_between_precipitating_particles
@@ -4491,11 +4529,11 @@
 	!>@param[in]lam_r, lam_i, t, n_r, n_i, qi, vol_xtal, rime_m, qr, a_hw1, pre_hm
 	!>@param[inout] nfrag_m1c
     subroutine mode1_sip_collisional(lam_r, lam_i, t, n_r, n_i, &
-                    qi, vol_xtal, rime_m, qr, a_hw1,pre_hw, dt, heyms_west,nfrag_m1c)
+                    qi, vol_xtal, rime_m, qr, a_hw1,pre_hw, rho, dt, heyms_west,nfrag_m1c)
         implicit none
         logical :: heyms_west
         real(wp), intent(in) :: lam_r, lam_i, t, n_r, n_i, qi, vol_xtal, rime_m, qr, &
-            a_hw1, pre_hw, dt
+            a_hw1, pre_hw, rho, dt
         real(wp), intent(inout) :: nfrag_m1c
         real(wp) :: dummy3
         
@@ -4504,19 +4542,29 @@
         lambda0i=lam_i
         mrthresh=cr*1.e-6_wp**dr
         mrupper=cr*(pthreshr/lambda0r)**dr
-        miupper=ci*(pthreshi/lambda0i)**di
-        mrupper=min(mrupper,miupper)
+        if(heyms_west) then
+            if((qi.gt.qsmall).and.((vol_xtal+rime_m/500._wp).gt.0._wp)) then
+                ci_new=pi/6._wp*min(910._wp, &
+                    qi/(vol_xtal+rime_m/500._wp))
+            else
+                ci_new=ci
+            endif
+            mithresh=ci_new*1.e-6_wp**di
+            miupper=ci_new*(pthreshi/lambda0i)**di
+        else
+            mithresh=ci*1.e-6_wp**di
+            miupper=ci*(pthreshi/lambda0i)**di
+        endif
         t_send=t
         nfrag_m1c=0._wp
         ! only call integral if mrupper gt mrthresh
-        if((mrupper.gt.mrthresh).and.(qr.gt.qsmall) .and.(qi.gt.qsmall)) then
+        if((mrupper.gt.mrthresh).and.(miupper.gt.mithresh).and. &
+           (qr.gt.qsmall).and.(qi.gt.qsmall)) then
 
             n0r=n_r
             n0i=n_i
 
             if(heyms_west) then
-                ci_new=pi/6._wp*min(910._wp, &
-                    qi/(vol_xtal+rime_m/500._wp))
                 a_hw_new=a_hw1
                 pre_hw_new=pre_hw
                 call quad2d_qgaus(dintegral_mode1_hw, &
@@ -4526,7 +4574,7 @@
                     limit1_mode1,limit2_mode1,mrthresh,mrupper,dummy3)                    
             endif
             ! multiplication according to mode-1
-            nfrag_m1c=dummy3*dt
+            nfrag_m1c=dummy3*dt/rho
          endif
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     end subroutine mode1_sip_collisional
@@ -4542,11 +4590,11 @@
 	!>@param[in]lam_r, lam_i, t, n_r, n_i, qi, vol_xtal, rime_m, qr, a_hw1, pre_hm
 	!>@param[inout] nfrag_m1c
     subroutine mode2_sip_collisional(lam_r, lam_i, t, n_r, n_i, &
-                    qi, vol_xtal, rime_m, qr, a_hw1,pre_hw, dt, heyms_west,nfrag_m2)
+                    qi, vol_xtal, rime_m, qr, a_hw1,pre_hw, rho, dt, heyms_west,nfrag_m2)
         implicit none
         logical :: heyms_west
         real(wp), intent(in) :: lam_r, lam_i, t, n_r, n_i, qi, vol_xtal, rime_m, qr, &
-            a_hw1, pre_hw, dt
+            a_hw1, pre_hw, rho, dt
         real(wp), intent(inout) :: nfrag_m2
         real(wp) :: dummy3
         
@@ -4558,7 +4606,17 @@
         lambda0i=lam_i
         mrthresh=cr*150.e-6_wp**dr
         mrupper=cr*(pthreshr/lambda0r)**dr
-        miupper=ci*(pthreshi/lambda0i)**di
+        if(heyms_west) then
+            if((qi.gt.qsmall).and.((vol_xtal+rime_m/500._wp).gt.0._wp)) then
+                ci_new=pi/6._wp*min(910._wp, &
+                    qi/(vol_xtal+rime_m/500._wp))
+            else
+                ci_new=ci
+            endif
+            miupper=ci_new*(pthreshi/lambda0i)**di
+        else
+            miupper=ci*(pthreshi/lambda0i)**di
+        endif
         mrupper=min(mrupper,miupper)
     
         ! only call integral if mrupper gt mrthresh
@@ -4569,8 +4627,6 @@
             n0i=n_i
 
             if(heyms_west) then
-                ci_new=pi/6._wp*min(910._wp, &
-                    qi/(vol_xtal+rime_m/500._wp))
                 a_hw_new=a_hw1
                 pre_hw_new=pre_hw
                 call quad2d_qgaus(dintegral_mode2_hw, &
@@ -4580,7 +4636,7 @@
                     limit1_mode2,limit2_mode2,mrthresh,mrupper,dummy3)                    
             endif
             ! multiplication according to new lab results...
-            nfrag_m2=dummy3*dt
+            nfrag_m2=dummy3*dt/rho
         endif
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     end subroutine mode2_sip_collisional
@@ -4595,12 +4651,12 @@
 	!>@param[in]lam_i, t, n_i, ni, qi, vol_xtal, rime_m, phi1, a_hw1, pre_hm
 	!>@param[inout] nfrag_m1c
     subroutine ice2_sip_collisional(lam_i, t, n_i, &
-                ni, qi, vol_xtal, rime_m, phi1, a_hw1,pre_hw, dt, heyms_west,nfrag_ii, &
+                ni, qi, vol_xtal, rime_m, phi1, a_hw1,pre_hw, rho, dt, heyms_west,nfrag_ii, &
                 coll_breakup_flag1)
         implicit none
         logical :: heyms_west
         real(wp), intent(in) :: lam_i, t, n_i, ni,qi, vol_xtal, rime_m, phi1, &
-            a_hw1, pre_hw, dt
+            a_hw1, pre_hw, rho, dt
         integer(i4b), intent(in) :: coll_breakup_flag1
         real(wp), intent(inout) :: nfrag_ii
         real(wp) :: dummy3
@@ -4613,9 +4669,16 @@
             ! calculate the number of fragments
             lambda0r=lam_i
             lambda0i=lam_i
-            mrthresh=cr*1.e-6_wp**dr
-            mrupper=ci*(pthreshi/lambda0r)**di
-            miupper=ci*(pthreshi/lambda0i)**di
+            if(heyms_west.and.(qi.gt.qsmall).and. &
+               ((vol_xtal+rime_m/500._wp).gt.0._wp)) then
+                ci_new=pi/6._wp*min(910._wp, &
+                    qi/(vol_xtal+rime_m/500._wp))
+            else
+                ci_new=ci
+            endif
+            mrthresh=ci_new*1.e-6_wp**di
+            mrupper=ci_new*(pthreshi/lambda0r)**di
+            miupper=ci_new*(pthreshi/lambda0i)**di
             mrupper=min(mrupper,miupper)
         
             ! only call integral if mrupper gt mrthresh
@@ -4626,8 +4689,6 @@
                 n0i=n_i
                 
                 if(heyms_west) then
-                    ci_new=pi/6._wp*min(910._wp, &
-                        qi/(vol_xtal+rime_m/500._wp))
                     a_hw_new=a_hw1
                     pre_hw_new=pre_hw
                     call quad2d_qgaus(dintegral_collisional_breakup_hw, &
@@ -4637,15 +4698,21 @@
                         limit1_collisional,limit2_mode2,mrthresh,mrupper,dummy3)                    
                 endif
                 ! multiplication according to Vardiman (1978)
-                nfrag_ii=dummy3*dt
+                nfrag_ii=0.5_wp*dummy3*dt/rho
             endif
         elseif(coll_breakup_flag1==2) then
             ! calculate the number of fragments
             lambda0r=lam_i
             lambda0i=lam_i
-            mrthresh=cr*1.e-6_wp**dr
-            mrupper=ci*(pthreshi/lambda0r)**di
-            miupper=ci*(pthreshi/lambda0i)**di
+            if((qi.gt.qsmall).and.((vol_xtal+rime_m/500._wp).gt.0._wp)) then
+                ci_new=pi/6._wp*min(910._wp, &
+                    qi/(vol_xtal+rime_m/500._wp))
+            else
+                ci_new=ci
+            endif
+            mrthresh=ci_new*1.e-6_wp**di
+            mrupper=ci_new*(pthreshi/lambda0r)**di
+            miupper=ci_new*(pthreshi/lambda0i)**di
             mrupper=min(mrupper,miupper)
         	t_send=t
             ! only call integral if mrupper gt mrthresh
@@ -4669,15 +4736,13 @@
                 
                 if(ni>1._wp) then
                 
-                    ci_new=pi/6._wp*min(910._wp, &
-                        qi/(vol_xtal+rime_m/500._wp))
                     a_hw_new=a_hw1
                     pre_hw_new=pre_hw
                     call quad2d_qgaus(dintegral_collisional_breakup2_hw, &
                         limit1_collisional,limit2_mode2,mrthresh,mrupper,dummy3)
 
                     ! multiplication according to Phillips et al (2017)
-                    nfrag_ii=dummy3*dt
+                    nfrag_ii=0.5_wp*dummy3*dt/rho
                 else
                     nfrag_ii=0._wp
                 endif
