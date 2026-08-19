@@ -4099,9 +4099,21 @@
         ! calculate the change in momentum - equation 7
         ! assume a coefficient of restitution of 0.5?
         ! units are g cm s-1
-        delm = 0.25_wp*pi*mr*mi/(mr+mi)*(1._wp+0.5_wp)*abs(vr-vi)*1.e5_wp 
-        delm = min(max(delm,exp(-vard02(2)/(2*vard02(1)))),1._wp)
-        nfrag = vard02(1)*(log(delm)**2)+vard02(2)*log(delm)+vard02(3)
+		! statistical change in momentum, g cm s-1
+		delm = 0.25_wp*pi * mr*mi/(mr+mi) * &
+			   (1._wp+0.5_wp) * delv * 1.e5_wp
+		
+		delm = min(delm,1._wp)
+		
+		nfrag = 0._wp
+		
+		where (delm > 6.146e-4_wp)
+			nfrag = max( &
+				vard02(1)*(log(delm)**2) + &
+				vard02(2)*log(delm) + &
+				vard02(3) - 1._wp, &
+				0._wp)
+		end where
         
         dintegral_collisional_breakup = dintegral_collisional_breakup * nfrag
             
@@ -4144,10 +4156,21 @@
         ! calculate the change in momentum - equation 7
         ! assume a coefficient of restitution of 0.5?
         ! units are g cm s-1
-        delm = 0.125_wp*pi*mr*mi/(mr+mi)*(1._wp+0.5_wp)*delv*1.e5_wp 
-        delm = min(max(delm,exp(-vard02(2)/(2*vard02(1)))),1._wp)
-        
-        nfrag = vard02(1)*(log(delm)**2)+vard02(2)*log(delm)+vard02(3)
+		! statistical change in momentum, g cm s-1
+		delm = 0.25_wp*pi * mr*mi/(mr+mi) * &
+			   (1._wp+0.5_wp) * delv * 1.e5_wp
+		
+		delm = min(delm,1._wp)
+		
+		nfrag = 0._wp
+		
+		where (delm > 6.146e-4_wp)
+			nfrag = max( &
+				vard02(1)*(log(delm)**2) + &
+				vard02(2)*log(delm) + &
+				vard02(3) - 1._wp, &
+				0._wp)
+		end where
         
         dintegral_collisional_breakup_hw = dintegral_collisional_breakup_hw * nfrag
             
