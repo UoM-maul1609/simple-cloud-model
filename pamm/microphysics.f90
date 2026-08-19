@@ -141,6 +141,7 @@
 	real(wp), dimension(3) :: c=[1._wp,2._wp,1._wp]
 	integer(i4b) :: k
 	real(wp) :: isnow, iice, iice2, f1,f2,a,b, qsmall=1.e-30_wp
+	real(wp), parameter :: qc_min=1.e-10_wp ! cloud-category presence threshold
 	
 	! to send to integrator
 	real(wp) :: a_hw_new, pre_hw_new, ci_new, t_send, lam_freeze, n0_freeze
@@ -2148,7 +2149,7 @@
 #else
         k1=max(k-1,1)
 #endif
-	    if((q(k1,iqc) .lt. qsmall) .and. (q(k,iqc) .gt. qsmall).and.(u(k)>0._wp)) then
+	    if((q(k1,iqc) .lt. qc_min) .and. (q(k,iqc) .ge. qc_min).and.(u(k)>0._wp)) then
 	    
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! Calculate the lognormal parameters                                         !
@@ -2402,7 +2403,7 @@
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! 6. collection of cloud by ice - riming                                     !
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		    if(((q(k,iqc).gt.qsmall) .and. (q(k,iqi).gt.qsmall)) .and. rm_flag) then
+		    if(((q(k,iqc).ge.qc_min) .and. (q(k,iqi).gt.qsmall)) .and. rm_flag) then
 		        ! piacw is a rate
 		        if(heyms_west) then
 		        
@@ -2473,7 +2474,7 @@
                 endif
                 ab_ice=ls**2 / (ktherm1*rv*t(k)**2) + 1._wp/(rho(k)*smr_i(k)*diff1)
                 ! chen and lamb growth rates
-                phi=min(max(q(k,iqi+1) / (q(k,ini+4)+qsmall),1.e-5_wp),100._wp)
+                phi=min(max(q(k,iqi+1) / (q(k,ini)+qsmall),1.e-5_wp),100._wp)
                 nu_ice=nu_ice*chen_and_lamb_cap_fac(phi)
         
                 ! non chen and lamb bit        
@@ -2502,7 +2503,7 @@
                          lam_i(k),q(k,iqi),q(k,iqi+2),q(k,iqi+4),a_hw1(k),pre_hw(k))
                 else
                     rii_coll=max(iice*n_i(k)**2._wp*rho_fac(k) / &
-                            lam_i(k)**(4._wp+2.*wp*alpha_i+b_i),0._wp)
+                            (rho(k)*lam_i(k)**(4._wp+2._wp*alpha_i+b_i)),0._wp)
                 endif
             endif
 
@@ -2664,11 +2665,10 @@
 
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        ! put aerosol from freezing rain in ice, 
-        ! should be praci (assuming piacr goes to ice anyway, so doesn't need doing)
+        ! Move aerosol carried by rain mass collected/frozen onto ice (PIACR).
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		if(ice_flag.and.(t(k).lt.ttr).and.(((q(k,  iqr)-pgfr(k)*dt).gt.qsmall))) then
-		    ! move aerosol from rain to ice due to praci
+		    ! move aerosol from rain to ice due to PIACR
 			call move_aerosol_proportional( n_mode, &
 			    q(k,cst(cat_r)+2:cst(cat_r)+2+(n_mode-2)*3:3), &
 			    q(k,cst(cat_r)+3:cst(cat_r)+3+(n_mode-2)*3:3), &
@@ -2676,7 +2676,7 @@
 			    q(k,iai:iai+(n_mode-2)*3:3), &
 			    q(k,iai+1:iai+1+(n_mode-2)*3:3), &
 			    q(k,iai+2:iai+2+(n_mode-2)*3:3), &
-			    praci(k)*dt,q(k,  iqr)-pgfr(k)*dt ,.true.)
+			    piacr(k)*dt,q(k,  iqr)-pgfr(k)*dt ,.true.)
 		endif
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -2721,7 +2721,7 @@
                     q(k,cst(cat_am)+1:cst(cat_am)+1+(n_mode-2)*3:3), &
                     q(k,cst(cat_am)+2:cst(cat_am)+2+(n_mode-2)*3:3), &
                     q(k,cst(cat_am)+3:cst(cat_am)+3+(n_mode-2)*3:3), &
-                    prevp(k)*dt,q(k,  iqr)-pgfr(k)*dt-praci(k)*dt , recycle )
+                    prevp(k)*dt,q(k,  iqr)-pgfr(k)*dt-piacr(k)*dt , recycle )
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             endif
         endif
@@ -2752,8 +2752,30 @@
 
 
         if(ice_flag) then
-            ! rime mass divided by mass
-            dummy1=q(k,iqi+4)/(q(k,iqi)+qsmall)
+            ! rime mass divided by mass, evaluated on the pre-process ice population
+            dummy1=min(max(q(k,iqi+4)/(q(k,iqi)+qsmall),0._wp),1._wp)
+
+            ! Sublimation number loss is a sink of the pre-existing ice population.
+            ! Remove the same fraction of particle-weighted shape/monomer moments and
+            ! recycle the corresponding fraction of ice-borne aerosol.
+            if((risub(k).gt.0._wp).and.(q(k,ini).gt.qsmall)) then
+                dummy2=min(risub(k)*dt,q(k,ini))
+                factor1=min(dummy2/(q(k,ini)+qsmall),1._wp)
+                if(dummy2.gt.qsmall) then
+                    if(recycle) q(k,cst(cat_am))=q(k,cst(cat_am))+dummy2
+                    call move_aerosol_proportional( n_mode, &
+                        q(k,iai:iai+(n_mode-2)*3:3), &
+                        q(k,iai+1:iai+1+(n_mode-2)*3:3), &
+                        q(k,iai+2:iai+2+(n_mode-2)*3:3), &
+                        q(k,cst(cat_am)+2:cst(cat_am)+2+(n_mode-2)*3:3), &
+                        q(k,cst(cat_am)+3:cst(cat_am)+3+(n_mode-2)*3:3), &
+                        q(k,cst(cat_am)+4:cst(cat_am)+4+(n_mode-2)*3:3), &
+                        dummy2,q(k,ini),recycle)
+                endif
+                q(k,iqi+1)=q(k,iqi+1)*(1._wp-factor1)
+                q(k,iqi+3)=q(k,iqi+3)*(1._wp-factor1)
+                q(k,ini)=q(k,ini)-dummy2
+            endif
 
             ! ****ALTERING Q-VARIABLES / PROPERTIES****
             ! mode-1 SIP         
@@ -2817,26 +2839,23 @@
             q(k,  inr)=q(k,inr)-nin_r
             
             ! ****ALTERING Q-VARIABLES / PROPERTIES****
-			! iacr is a source of ice mass only - not number
-            ! increase ice crystal mass
-            q(k  ,iqi)  =q(k  ,iqi)+praci(k)*dt
-            ! increase rime mass of ice
-            q(k,  iqi+4)=q(k  ,iqi+4)+praci(k)*dt
-            ! iacr is a sink of rain mass and number
-            q(k,  iqr)  =q(k, iqr)-praci(k)*dt
-            q(k,  inr)  =q(k, inr)-rraci(k)*dt
+			! PIACR is the rain mass transferred to the ice category; PRACI is
+            ! an ice-mass-weighted collision diagnostic and must not be added again.
+            q(k,  iqi)  =q(k,iqi)+piacr(k)*dt
+            q(k,  iqi+4)=q(k,iqi+4)+piacr(k)*dt
+            q(k,  iqr)  =q(k,iqr)-piacr(k)*dt
+            q(k,  inr)  =q(k,inr)-rraci(k)*dt
 
 
-            ! rime mass - could do this in proportion i.e. rm/q*dm
-            ! NOTE, iqi has been changed prior
-            q(k,iqi+4)=q(k,iqi+4)+dummy1*(pidep(k)-pisub(k))*dt
-            ! ice mass - total
+            ! Vapour deposition grows crystal mass, not rime.  Sublimation removes
+            ! the pre-existing rime fraction proportionally.
+            q(k,iqi+4)=q(k,iqi+4)-dummy1*pisub(k)*dt
             q(k,iqi)=q(k,iqi)+(pidep(k)-pisub(k))*dt
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! do the riming here                                                         !
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            if(rm_flag.and.(q(k,iqc).ge.qsmall)) then
+            if(rm_flag.and.(q(k,iqc).ge.qc_min)) then
                 !dummy3 is initial cloud water mass, dummy4 is initial nc
 
                 ! riming
@@ -2882,9 +2901,14 @@
 
 
             
-            ! add the aerosol in ice into the mixed-mode aerosol
-            ! fraction that number reduces by
-            q(k,ini)=q(k,ini)-(riaci(k))*dt
+            ! Ice-ice aggregation removes one particle per sticking event but
+            ! conserves ice mass and monomer number.  With q(iqi+1) defined as the
+            ! particle-number-weighted phi moment, preserve mean phi through aggregation.
+            if((riaci(k).gt.0._wp).and.(q(k,ini).gt.qsmall)) then
+                factor1=min(riaci(k)*dt/(q(k,ini)+qsmall),1._wp)
+                q(k,iqi+1)=q(k,iqi+1)*(1._wp-factor1)
+                q(k,ini)=q(k,ini)-riaci(k)*dt
+            endif
             if(q(k,iqi)<qsmall) then
                 dummy2=q(k,ini)
                 q(k,1)=q(k,1)+q(k,iqi)
@@ -2917,17 +2941,17 @@
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 ! chen and lamb                                                          !
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                ! current volume
+                ! current volume and particle-number-weighted mean aspect ratio
                 vol=q(k,iqi+2)
-                ! dummy1 is the rime mass fraction
-                ! dm of the crystal
-                call chen_and_lamb_prop((1._wp-dummy1)*(pidep(k)-pisub(k))*dt,gamma_t(k), &
+                phi=min(max(q(k,iqi+1)/(q(k,ini)+qsmall),1.e-5_wp),100._wp)
+                ! dummy1 is the pre-process rime mass fraction; dm is crystal mass only
+                call chen_and_lamb_prop((pidep(k)-(1._wp-dummy1)*pisub(k))*dt,gamma_t(k), &
                     vol,phi, dep_density(k))
                 ! this is the new volume of the crystals
                 ! NB, IQI has changed prior
                 vol=min(max(vol,(q(k,iqi)-q(k,iqi+4))/rhoi),(q(k,iqi)-q(k,iqi+4))/10._wp)
                 q(k,iqi+2)=vol
-                q(k,iqi+1)=phi*q(k,ini+4)
+                q(k,iqi+1)=phi*q(k,ini)
             endif
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! end deposition & sublimation onto ice                                      !
@@ -2936,7 +2960,7 @@
         endif
 
 
-        if(q(k,iqc) .lt. qsmall) then ! if evaporated
+        if(q(k,iqc) .lt. qc_min) then ! numerically empty cloud category
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! move all aerosol in cloud to the aerosol
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2964,7 +2988,7 @@
         ! adjust temperature 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         t(k)=t(k)-lv/cp*prevp(k)*dt+lf/cp*pifrw(k)*dt+lf/cp*pgfr(k)*dt+ &
-            lf/cp*praci(k)*dt + &
+            lf/cp*piacr(k)*dt + &
             ls/cp*(pidep(k)-pisub(k))*dt + & !-lf/cp*(pimlt(k))*dt + &
             lf/cp*(piacw(k))*dt
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3720,8 +3744,12 @@
         dthresh = min(d,1.6e-3)
         x = log10(dthresh*1000._wp)
         
-        ! table 3, phillips et al.
-        beta1 = 0.
+        ! table 3, Phillips et al.
+        if (dthresh < 0.4e-3_wp) then
+            beta1 = 0._wp
+        else
+            beta1 = -0.1839_wp*x*x - 0.2017_wp*x - 0.0512_wp
+        endif
         log10zeta = 2.4268_wp*x*x*x + 3.3274_wp*x*x + 2.0783_wp*x + 1.2927_wp
         log10nabla = 0.1242_wp*x*x*x - 0.2316_wp*x*x - 0.9874_wp*x - 0.0827_wp
         t0 = -1.3999_wp*x*x*x - 5.3285_wp*x*x - 3.9847_wp*x - 15.0332_wp
@@ -3734,8 +3762,10 @@
         sigma = min(max((d-50.e-6_wp)/10.e-6_wp,0._wp), 1._wp)
         omega = min(max((-3._wp-tc)/3._wp,0._wp),1._wp)
         
-        n = sigma*omega*(10._wp**log10zeta *(10._wp**log10nabla)**2) / &
-            ((tc-t0)**2+(10._wp**log10nabla)**2+beta1*tc)
+        n = sigma*omega*( &
+            (10._wp**log10zeta)*(10._wp**log10nabla)**2 / &
+            ((tc-t0)**2+(10._wp**log10nabla)**2) + beta1*tc )
+        n=max(n,0._wp)
         
         ! total number of fragments
         n=n*d/dthresh
@@ -4193,15 +4223,24 @@
         ! now Phillips et al++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         ! calculate particle properties from moments
         ! 1=vol, 2=mass, 3=rime mass, 4=phi, 5=number
-        frime1=phillips_br_workspace(3)/phillips_br_workspace(2)
+        frime1=min(max(phillips_br_workspace(3) / &
+            (phillips_br_workspace(2)+qsmall),0._wp),1._wp)
         frime2=frime1
-        phi1=phillips_br_workspace(4)/phillips_br_workspace(5)
+        phi1=min(max(phillips_br_workspace(4) / &
+            (phillips_br_workspace(5)+qsmall),1.e-5_wp),100._wp)
         phi2=phi1
-        rhoi1 = min(rhoi,(phillips_br_workspace(2)-phillips_br_workspace(3)) / &
-                phillips_br_workspace(1))
-        rhoi2 = rhoi1      
-        vol1=mr/rhoi1
-        vol2=mi/rhoi1
+        if((phillips_br_workspace(1).gt.qsmall).and. &
+           ((phillips_br_workspace(2)-phillips_br_workspace(3)).gt.qsmall)) then
+            rhoi1=min(rhoi,(phillips_br_workspace(2)-phillips_br_workspace(3)) / &
+                    phillips_br_workspace(1))
+        else
+            rhoi1=rhoi
+        endif
+        rhoi1=max(rhoi1,qsmall)
+        rhoi2=rhoi1
+        ! vol1/vol2 are unrimed crystal volumes; rime volume is added separately below.
+        vol1=mr*(1._wp-frime1)/rhoi1
+        vol2=mi*(1._wp-frime2)/rhoi2
         
         
         
@@ -4432,7 +4471,7 @@
         logical, intent(in) :: heyms_west
         real(wp), intent(inout) :: praci, rraci, piacr, riacr
         
-        ! rain mass collected by ice
+        ! ice-mass-weighted collision moment (PRACI)
         praci=max(n_r*n_i*pi/(4._wp*rho)*eri*ci*max((vqi+vqr)/8._wp,abs(vqi-vqr)) * &
                 ( &
                 mass_raci1/(lam_r**(1._wp+alpha_r) *lam_i**(3._wp+alpha_i+di)) + &
@@ -4447,7 +4486,7 @@
                 num_raci3/(lam_r**(3._wp+alpha_r) *lam_i**(1._wp+alpha_i))  &
                 )    , 0._wp)    
 
-        ! ice mass collected by rain
+        ! rain mass collected/frozen onto ice (PIACR)
         piacr=max(n_i*n_r*pi/(4._wp*rho)*eri*cr*max((vqr+vqi)/8._wp,abs(vqr-vqi)) * &
                 ( &
                 mass_iacr1/(lam_i**(1._wp+alpha_i) *lam_r**(3._wp+alpha_r+dr)) + &
@@ -4495,11 +4534,11 @@
                 pre_hw_new=pre_hw
                 call quad2d_qgaus(dintegral_coll_num_hw, &
                     limit1_coll_ri,limit2_coll_ri,mrthresh,mrupper,riacr)
-                ! rain mass collected by ice
-                call quad2d_qgaus(dintegral_coll_mass2_hw, &
-                    limit1_coll_ri,limit2_coll_ri,mrthresh,mrupper,praci)
-                ! ice mass associated with the same collisions
+                ! ice-mass-weighted collision moment (diagnostic PRACI)
                 call quad2d_qgaus(dintegral_coll_mass1_hw, &
+                    limit1_coll_ri,limit2_coll_ri,mrthresh,mrupper,praci)
+                ! rain mass collected/frozen onto ice (PIACR)
+                call quad2d_qgaus(dintegral_coll_mass2_hw, &
                     limit1_coll_ri,limit2_coll_ri,mrthresh,mrupper,piacr)
                 riacr=riacr/rho
                 praci=praci/rho
@@ -4897,7 +4936,7 @@
         sink_nc=max(-rcwaut,0._wp)+max(-rcwacr,0._wp)+max(-rcwsel,0._wp)+ &
             max(nin_c,0._wp)/dt+max(riacw,0._wp)
 
-        sink_qr=max(massr_nucr,0._wp)/dt+max(prevp,0._wp)+max(praci,0._wp)
+        sink_qr=max(massr_nucr,0._wp)/dt+max(prevp,0._wp)+max(piacr,0._wp)
         sink_nr=max(-rrsel,0._wp)+max(nin_r,0._wp)/dt+ &
             max(rraci,0._wp)+max(rrevp,0._wp)
 
@@ -4959,8 +4998,8 @@
         piacw=piacw*f_rime
         riacw=riacw*f_rime
 
-        ! Rain-ice collision/freezing.  Apply the same event fraction to the rain mass,
-        ! rain number, diagnostic ice moments and collision-induced SIP.
+        ! Rain-ice collision/freezing.  PIACR is the rain-mass sink; PRACI is the
+        ! ice-mass-weighted diagnostic moment.  All moments share one event factor.
         !f_raci=min(min(fq_r,fn_r),fthermal)
         f_raci=min(fq_r,fn_r)
         praci=praci*f_raci
