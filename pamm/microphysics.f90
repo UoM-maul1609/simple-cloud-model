@@ -4961,7 +4961,8 @@
 
         ! Rain-ice collision/freezing.  Apply the same event fraction to the rain mass,
         ! rain number, diagnostic ice moments and collision-induced SIP.
-        f_raci=min(min(fq_r,fn_r),fthermal)
+        !f_raci=min(min(fq_r,fn_r),fthermal)
+        f_raci=min(fq_r,fn_r)
         praci=praci*f_raci
         rraci=rraci*f_raci
         piacr=piacr*f_raci
