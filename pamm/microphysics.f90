@@ -2211,40 +2211,41 @@
             ! cloud droplet number
             q(k  ,inc)=temp1
             ! now we take activated aerosol away from aerosol field and add to in-cloud
-            do i=1,n_mode-1
-                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                ! remove from aerosol particles:                                         !
-                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                ! number in aerosol modes
-                dummy1=ln_part_mom(0,dcrit2(i),q(k,cst(i+1)), sig_aer1(i),d_aer1(i))
-                !print *,dummy1, dcrit2(i), act_frac1*q(k,cst(i+1))
-                q(k,cst(i+1))=q(k,cst(i+1))-dummy1 
-                    
-                ! surface area in aerosol modes
-                dummy2=pi*ln_part_mom(2,dcrit2(i),q(k,cst(i+1)), sig_aer1(i),d_aer1(i))
-                q(k,cst(i+1)+1)=q(k,cst(i+1)+1)- dummy2 
-                    
-                ! mass in aerosol modes
-                dummy3=pi/6._wp*density_core1(i)* &
-                    ln_part_mom(3,dcrit2(i),q(k,cst(i+1)), sig_aer1(i),d_aer1(i))
-                q(k,cst(i+1)+2)=q(k,cst(i+1)+2)- dummy3
-                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                ! add to aerosol particles in cloud water                                !
-                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                ! number in aerosol modes
-                ! qv, n_mode aerosol + 1
-                q(k,cst(cat_c)+(i-1)*3+2)=q(k,cst(cat_c)+(i-1)*3+2)+dummy1 
-                    
-                ! surface area in aerosol modes
-                q(k,cst(cat_c)+(i-1)*3+3)=q(k,cst(cat_c)+(i-1)*3+3)+dummy2 
-                    
-                ! mass in aerosol modes
-                q(k,cst(cat_c)+(i-1)*3+4)=q(k,cst(cat_c)+(i-1)*3+4)+dummy3
-                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            enddo
+			do i=1,n_mode-1
+			
+				! Save the aerosol number before removing any activated aerosol.
+				! All partial moments must be calculated from the same parent PSD.
+				n_tot = q(k,cst(i+1))
+			
+				! number activated
+				dummy1 = ln_part_mom(0,dcrit2(i),n_tot, &
+									 sig_aer1(i),d_aer1(i))
+			
+				! activated aerosol surface area
+				dummy2 = pi*ln_part_mom(2,dcrit2(i),n_tot, &
+										sig_aer1(i),d_aer1(i))
+			
+				! activated aerosol mass
+				dummy3 = pi/6._wp*density_core1(i)* &
+						 ln_part_mom(3,dcrit2(i),n_tot, &
+									 sig_aer1(i),d_aer1(i))
+			
+				! remove activated aerosol from interstitial population
+				q(k,cst(i+1))   = q(k,cst(i+1))   - dummy1
+				q(k,cst(i+1)+1) = q(k,cst(i+1)+1) - dummy2
+				q(k,cst(i+1)+2) = q(k,cst(i+1)+2) - dummy3
+			
+				! add activated aerosol to cloud-water aerosol population
+				q(k,cst(cat_c)+(i-1)*3+2) = &
+					q(k,cst(cat_c)+(i-1)*3+2) + dummy1
+			
+				q(k,cst(cat_c)+(i-1)*3+3) = &
+					q(k,cst(cat_c)+(i-1)*3+3) + dummy2
+			
+				q(k,cst(cat_c)+(i-1)*3+4) = &
+					q(k,cst(cat_c)+(i-1)*3+4) + dummy3
+			
+			enddo
             ! deplete aerosol from mixed mode
             ! this calculates the total depletion. For each component
             ! deplete, base on fraction of each component
