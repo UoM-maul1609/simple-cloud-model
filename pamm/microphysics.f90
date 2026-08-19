@@ -1925,7 +1925,7 @@
 	! coalescence efficiencies
 	real(wp), dimension(1-o_halo:kp+o_halo) :: egi_dry, egs_dry, esi, eii, ess
 	real(wp) :: qold,des_dt,dqs_dt,err,cond,temp1, dummy1,dummy2, dummy3,&
-	            dummy4, , factor1, &
+	            dummy4, factor1, &
 	            n_mix,s_mix,m_mix, nin_c, din_c,nin_r,din_r, n_tot, s_tot, m_tot, rii_coll
 	
 	real(wp), dimension(1-o_halo:kp+o_halo) :: gamma_t,dep_density, qold1
