@@ -72,7 +72,7 @@
 		        ! Flux going through left cell boundary from adjacent cell-x
 				fx_l(k,j,i)=( (u(k,j,i-1)+abs(u(k,j,i-1)))*psi(k,j,i-1)+ &
 					(u(k,j,i-1)-abs(u(k,j,i-1)))*psi(k,j,i) )*dt/ &
-					(2._wp*dxn(i-1))
+					(2._wp*dxn(i))
 		
 				fy_r(k,j,i)=( (v(k,j,i)+abs(v(k,j,i)))*psi(k,j,i)+ &
 					(v(k,j,i)-abs(v(k,j,i)))*psi(k,j+1,i) )*dt/ &
@@ -80,15 +80,15 @@
 		
 				fy_l(k,j,i)=( (v(k,j-1,i)+abs(v(k,j-1,i)))*psi(k,j-1,i)+ &
 					(v(k,j-1,i)-abs(v(k,j-1,i)))*psi(k,j,i) )*dt/ &
-					(2._wp*dyn(j-1))
+					(2._wp*dyn(j))
 		
-				fz_r(k,j,i)=( (w(k,j,i)+abs(w(k,j,i)))*rhoan(k)*psi(k,j,i)+ &
-					(w(k,j,i)-abs(w(k,j,i)))*rhoan(k+1)*psi(k+1,j,i) )*dt/ &
-					(2._wp*dzn(k)*rhoa(k))
+				fz_r(k,j,i)=( (w(k,j,i)+abs(w(k,j,i)))*rhoa(k)*psi(k,j,i)+ &
+					(w(k,j,i)-abs(w(k,j,i)))*rhoa(k)*psi(k+1,j,i) )*dt/ &
+					(2._wp*dzn(k)*rhoan(k))
 		
-				fz_l(k,j,i)=( (w(k-1,j,i)+abs(w(k-1,j,i)))*rhoan(k-1)*psi(k-1,j,i)+ &
-					(w(k-1,j,i)-abs(w(k-1,j,i)))*rhoan(k)*psi(k,j,i) )*dt/ &
-					(2._wp*dzn(k-1)*rhoa(k))
+				fz_l(k,j,i)=( (w(k-1,j,i)+abs(w(k-1,j,i)))*rhoa(k-1)*psi(k-1,j,i)+ &
+					(w(k-1,j,i)-abs(w(k-1,j,i)))*rhoa(k-1)*psi(k,j,i) )*dt/ &
+					(2._wp*dzn(k)*rhoan(k))
 			enddo
 		enddo
 	enddo
@@ -747,13 +747,13 @@
     			else
     			    wkm1ji=w(k-1,j,i)
     			endif
-				fz_r(k,j,i)=( (wkji+abs(wkji))*rhoan(k)*psi(k,j,i)+ &
-					(wkji-abs(wkji))*rhoan(k+1)*psi(k+1,j,i) )*dt/ &
-					(2._wp*dzn(k)*rhoa(k))
+				fz_r(k,j,i)=( (wkji+abs(wkji))*rhoa(k)*psi(k,j,i)+ &
+					(wkji-abs(wkji))*rhoa(k)*psi(k+1,j,i) )*dt/ &
+					(2._wp*dzn(k)*rhoan(k))
 		
-				fz_l(k,j,i)=( (wkm1ji+abs(wkm1ji))*rhoan(k-1)*psi(k-1,j,i)+ &
-					(wkm1ji-abs(wkm1ji))*rhoan(k)*psi(k,j,i) )*dt/ &
-					(2._wp*dzn(k-1)*rhoa(k))
+				fz_l(k,j,i)=( (wkm1ji+abs(wkm1ji))*rhoa(k-1)*psi(k-1,j,i)+ &
+					(wkm1ji-abs(wkm1ji))*rhoa(k-1)*psi(k,j,i) )*dt/ &
+					(2._wp*dzn(k)*rhoan(k))
 			enddo
 		enddo
 	enddo
