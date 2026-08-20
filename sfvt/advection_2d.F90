@@ -67,12 +67,12 @@
     
     
             fz_r(k,i)=( (w(k,i)+abs(w(k,i)))*rhoa(k)*psi(k,i)+ &
-                (w(k,i)-abs(w(k,i)))*rhoa(k+1)*psi(k+1,i) )*dt/ &
-                (2._wp*dzn(k)*rhoa(k))
+                (w(k,i)-abs(w(k,i)))*rhoa(k)*psi(k+1,i) )*dt/ &
+                (2._wp*dzn(k)*rhoan(k))
     
-            fz_l(k,i)=( (w(k-1,i)+abs(w(k-1,i)))*rhoan(k-1)*psi(k-1,i)+ &
-                (w(k-1,i)-abs(w(k-1,i)))*rhoan(k)*psi(k,i) )*dt/ &
-                (2._wp*dzn(k)*rhoa(k))
+            fz_l(k,i)=( (w(k-1,i)+abs(w(k-1,i)))*rhoa(k-1)*psi(k-1,i)+ &
+                (w(k-1,i)-abs(w(k-1,i)))*rhoa(k-1)*psi(k,i) )*dt/ &
+                (2._wp*dzn(k)*rhoan(k))
         enddo
 	enddo
 !$omp end simd
