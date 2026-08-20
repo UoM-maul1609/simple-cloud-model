@@ -3017,7 +3017,8 @@
         ! Melt only the ice mass that can be supplied by sensible heat above 0 C.
         pimlt(k)=0._wp
         rimlt(k)=0._wp
-        if(ice_flag.and.(t(k).gt.ttr).and.(q(k,iqi).gt.qsmall)) then
+        if(ice_flag) then
+          if ((t(k).gt.ttr).and.(q(k,iqi).gt.qsmall)) then
             dummy1=min(q(k,iqi),max((t(k)-ttr)*cp/lf,0._wp)) ! mass melted
             if(dummy1.gt.0._wp) then
                 factor1=min(dummy1/(q(k,iqi)+qsmall),1._wp)
@@ -3041,6 +3042,7 @@
                 q(k,iqr)=q(k,iqr)+dummy1
                 t(k)=t(k)-lf/cp*dummy1
             endif
+          endif
         endif
 
         q(k,cst(cat_r)+1)=q(k,cst(cat_r)+1)-prevp(k)*dt
