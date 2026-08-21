@@ -143,8 +143,8 @@
 		w_store1, w_store2
 	real(wp), dimension(-r_h+1:kp+r_h), target :: psi_store
 	real(wp), dimension(-r_h+1:kp+r_h) :: &
-						psi_k_max,psi_k_min, &
-						beta_k_up, beta_k_down
+						psi_max,psi_min, &
+						beta_up, beta_down
 	real(wp) :: g_bar3	
 
 	! has to be positive definite
@@ -288,12 +288,12 @@
 !$omp simd	
             do k=1,kp			
                 ! z direction - note: should the last q in the max/min be q+1?
-                psi_k_max(k)=max(psi(k-1),psi(k),psi(k+1), &
-                            psi_old(k-1),psi_old(k),psi_old(k+1))
-            
-                psi_k_min(k)=min(psi(k-1),psi(k),psi(k+1), &
-                            psi_old(k-1),psi_old(k),psi_old(k+1))
-            enddo
+				psi_max(k) = max(psi(k-1),psi(k),psi(k+1), &
+								 psi_old(k-1),psi_old(k),psi_old(k+1))
+			
+				psi_min(k) = min(psi(k-1),psi(k),psi(k+1), &
+								 psi_old(k-1),psi_old(k),psi_old(k+1))
+			enddo
 !$omp end simd
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -306,18 +306,19 @@
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !$omp simd	
             do k=1,kp		
-                denom1=(dt*((max(wt(k-1),0._wp)*psi_old(k-1)-&
-                          min(wt(k),0._wp)*psi_old(k+1))/dz(k-1) &
-                          +small))
-                          
-                denom2=(dt*((max(wt(k),0._wp)*psi_old(k)-&
-                          min(wt(k-1),0._wp)*psi_old(k))/dz(k-1) &
-                          +small))
-                          
-                beta_k_up(k)=(psi_k_max(k)-psi_old(k)) / denom1
-
-                          
-                beta_k_down(k)=(psi_old(k)-psi_k_min(k)) / denom2
+				denom1 = dt * ( &
+					max(wt(k-1),0._wp)*rhoa(k-1)*psi_old(k-1) - &
+					min(wt(k),0._wp)*rhoa(k)*psi_old(k+1) ) / dzn(k) + small
+				
+				denom2 = dt * ( &
+					max(wt(k),0._wp)*rhoa(k)*psi_old(k) - &
+					min(wt(k-1),0._wp)*rhoa(k-1)*psi_old(k) ) / dzn(k) + small
+				
+				beta_up(k) = rhoan(k) * &
+					(psi_max(k)-psi_old(k)) / denom1
+				
+				beta_down(k) = rhoan(k) * &
+					(psi_old(k)-psi_min(k)) / denom2
             enddo
 !$omp end simd
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -340,6 +341,10 @@
 !             beta_i_down(:,ip+1:ip+r_h)  =beta_i_down(:,1:r_h)
 !             beta_k_up(:,-l_h+1:0)       =beta_k_up(:,ip-l_h+1:ip)
 !             beta_k_down(:,ip+1:ip+r_h)  =beta_k_down(:,1:r_h)
+			beta_up(1-r_h:0)       = 0._wp
+			beta_up(kp+1:kp+r_h)   = 0._wp
+			beta_down(1-r_h:0)     = 0._wp
+			beta_down(kp+1:kp+r_h) = 0._wp
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 								
@@ -347,12 +352,13 @@
 			! equation 18 of Smolarkiewicz and Grabowski (1990, JCP, 86)                 !
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !$omp simd	
-            do k=1,kp			
-                wt_sav(k)=min(1._wp,beta_k_down(k), &
-                                 beta_k_up(k+1))*max(wt(k),0._wp) + &
-                              min(1._wp,beta_k_up(k), &
-                                 beta_k_down(k+1))*min(wt(k),0._wp)
-            enddo
+			do k=1,kp
+				wt_sav(k) = &
+					min(1._wp,beta_down(k),beta_up(k+1)) * &
+						max(wt(k),0._wp) + &
+					min(1._wp,beta_up(k),beta_down(k+1)) * &
+						min(wt(k),0._wp)
+			enddo
 !$omp end simd
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -490,8 +496,8 @@
 		w_store1, w_store2
 	real(wp), dimension(-r_h+1:kp+r_h,1:nq), target :: psi_store
 	real(wp), dimension(-r_h+1:kp+r_h) :: &
-						psi_k_max,psi_k_min, &
-						beta_k_up, beta_k_down
+						psi_max,psi_min, &
+						beta_up, beta_down
 	real(wp) :: g_bar3
 	
 
@@ -639,14 +645,13 @@
 
 
 !$omp simd	
-            do k=1,kp			
-                ! z direction - note: should the last q in the max/min be q+1?
-                psi_k_max(k)=max(psi(k-1),psi(k),psi(k+1), &
-                            psi_old(k-1),psi_old(k),psi_old(k+1))
-            
-                psi_k_min(k)=min(psi(k-1),psi(k),psi(k+1), &
-                            psi_old(k-1),psi_old(k),psi_old(k+1))
-            enddo
+			do k=1,kp
+				psi_max(k) = max(psi(k-1),psi(k),psi(k+1), &
+								 psi_old(k-1),psi_old(k),psi_old(k+1))
+			
+				psi_min(k) = min(psi(k-1),psi(k),psi(k+1), &
+								 psi_old(k-1),psi_old(k),psi_old(k+1))
+			enddo
 !$omp end simd
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -658,19 +663,19 @@
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !$omp simd	
             do k=1,kp	
-                	
-                denom1=dt*((max(wt(k-1),0._wp)*psi_old(k-1)-&
-                          min(wt(k),0._wp)*psi_old(k+1))/dz(k-1) &
-                          +small)
-                          
-                denom2=dt*((max(wt(k),0._wp)*psi_old(k)-&
-                          min(wt(k-1),0._wp)*psi_old(k))/dz(k-1) &
-                          +small)
-                          
-
-                beta_k_up(k)=(psi_k_max(k)-psi_old(k)) / denom1
-                          
-                beta_k_down(k)=(psi_old(k)-psi_k_min(k)) / denom2
+				denom1 = dt * ( &
+					max(wt(k-1),0._wp)*rhoa(k-1)*psi_old(k-1) - &
+					min(wt(k),0._wp)*rhoa(k)*psi_old(k+1) ) / dzn(k) + small
+				
+				denom2 = dt * ( &
+					max(wt(k),0._wp)*rhoa(k)*psi_old(k) - &
+					min(wt(k-1),0._wp)*rhoa(k-1)*psi_old(k) ) / dzn(k) + small
+				
+				beta_up(k) = rhoan(k) * &
+					(psi_max(k)-psi_old(k)) / denom1
+				
+				beta_down(k) = rhoan(k) * &
+					(psi_old(k)-psi_min(k)) / denom2
             enddo
 !$omp end simd
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -691,6 +696,10 @@
 !             beta_i_down(:,ip+1:ip+r_h)  =beta_i_down(:,1:r_h)
 !             beta_k_up(:,-l_h+1:0)       =beta_k_up(:,ip-l_h+1:ip)
 !             beta_k_down(:,ip+1:ip+r_h)  =beta_k_down(:,1:r_h)
+			beta_up(1-r_h:0)       = 0._wp
+			beta_up(kp+1:kp+r_h)   = 0._wp
+			beta_down(1-r_h:0)     = 0._wp
+			beta_down(kp+1:kp+r_h) = 0._wp
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -699,12 +708,13 @@
 			! equation 18 of Smolarkiewicz and Grabowski (1990, JCP, 86)                 !
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !$omp simd	
-            do k=1,kp			
-                wt_sav(k)=min(1._wp,beta_k_down(k), &
-                                 beta_k_up(k+1))*max(wt(k),0._wp) + &
-                              min(1._wp,beta_k_up(k), &
-                                 beta_k_down(k+1))*min(wt(k),0._wp)
-            enddo
+			do k=1,kp
+				wt_sav(k) = &
+					min(1._wp,beta_down(k),beta_up(k+1)) * &
+						max(wt(k),0._wp) + &
+					min(1._wp,beta_up(k),beta_down(k+1)) * &
+						min(wt(k),0._wp)
+			enddo
 !$omp end simd
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
