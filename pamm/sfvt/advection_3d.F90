@@ -267,10 +267,8 @@
 		w_store1, w_store2
 	real(wp), dimension(-r_h+1:kp+r_h,-r_h+1:jp+r_h,-r_h+1:ip+r_h), target :: psi_store
 	real(wp), dimension(-r_h+1:kp+r_h,-r_h+1:jp+r_h,-r_h+1:ip+r_h) :: &
-						psi_i_max, psi_i_min, psi_j_max,psi_j_min,psi_k_max,psi_k_min, &
-						beta_i_up, beta_i_down,&
-						beta_j_up, beta_j_down,&
-						beta_k_up, beta_k_down
+						psi_max, psi_min, &
+						beta_up, beta_down
 	real(wp) :: g_bar1, g_bar2, g_bar3
 
 	! has to be positive definite
@@ -552,43 +550,26 @@
 			do i=1,ip
 				do j=1,jp
 					do k=1,kp			
-						! x direction - note: should the last q in the max/min be q+1?
-						psi_i_max(k,j,i)=max(psi(k,j,i-1),psi(k,j,i),psi(k,j,i+1), &
-									psi_old(k,j,i-1),psi_old(k,j,i),psi_old(k,j,i+1))
-					
-						psi_i_min(k,j,i)=min(psi(k,j,i-1),psi(k,j,i),psi(k,j,i+1), &
-									psi_old(k,j,i-1),psi_old(k,j,i),psi_old(k,j,i+1))
-					enddo
-				enddo
-			enddo
-!$omp end simd
-
-!$omp simd	
-			do i=1,ip
-				do j=1,jp
-					do k=1,kp			
-						! y direction - note: should the last q in the max/min be q+1?
-						psi_j_max(k,j,i)=max(psi(k,j-1,i),psi(k,j,i),psi(k,j+1,i), &
-									psi_old(k,j-1,i),psi_old(k,j,i),psi_old(k,j+1,i))
-					
-						psi_j_min(k,j,i)=min(psi(k,j-1,i),psi(k,j,i),psi(k,j+1,i), &
-									psi_old(k,j-1,i),psi_old(k,j,i),psi_old(k,j+1,i))
-					enddo
-				enddo
-			enddo
-!$omp end simd
-
-!$omp simd	
-			do i=1,ip
-				do j=1,jp
-					do k=1,kp			
-						! z direction - note: should the last q in the max/min be q+1?
-						psi_k_max(k,j,i)=max(psi(k-1,j,i),psi(k,j,i),psi(k+1,j,i), &
-									psi_old(k-1,j,i),psi_old(k,j,i),psi_old(k+1,j,i))
-					
-						psi_k_min(k,j,i)=min(psi(k-1,j,i),psi(k,j,i),psi(k+1,j,i), &
-									psi_old(k-1,j,i),psi_old(k,j,i),psi_old(k+1,j,i))
-					enddo
+						psi_max(k,j,i) = max( &
+							psi(k,j,i), &
+							psi(k,j,i-1), psi(k,j,i+1), &
+							psi(k,j-1,i), psi(k,j+1,i), &
+							psi(k-1,j,i), psi(k+1,j,i), &
+							psi_old(k,j,i), &
+							psi_old(k,j,i-1), psi_old(k,j,i+1), &
+							psi_old(k,j-1,i), psi_old(k,j+1,i), &
+							psi_old(k-1,j,i), psi_old(k+1,j,i) )
+						
+						psi_min(k,j,i) = min( &
+							psi(k,j,i), &
+							psi(k,j,i-1), psi(k,j,i+1), &
+							psi(k,j-1,i), psi(k,j+1,i), &
+							psi(k-1,j,i), psi(k+1,j,i), &
+							psi_old(k,j,i), &
+							psi_old(k,j,i-1), psi_old(k,j,i+1), &
+							psi_old(k,j-1,i), psi_old(k,j+1,i), &
+							psi_old(k-1,j,i), psi_old(k+1,j,i) )
+    					enddo
 				enddo
 			enddo
 !$omp end simd
@@ -605,35 +586,30 @@
 			do i=1,ip
 				do j=1,jp
 					do k=1,kp		
-						denom1=(dt*((max(ut(k,j,i-1),0._wp)*psi_old(k,j,i-1)- &
-								  min(ut(k,j,i),0._wp)*psi_old(k,j,i+1))/dx(i-1)+ &
-							    (max(vt(k,j-1,i),0._wp)*psi_old(k,j-1,i)-&
-								  min(vt(k,j,i),0._wp)*psi_old(k,j+1,i))/dy(j-1) + &
-							    (max(wt(k-1,j,i),0._wp)*psi_old(k-1,j,i)-&
-								  min(wt(k,j,i),0._wp)*psi_old(k+1,j,i))/dz(k-1) &
-								  +small))
-								  
-						denom2=(dt*((max(ut(k,j,i),0._wp)*psi_old(k,j,i)- &
-							      min(ut(k,j,i-1),0._wp)*psi_old(k,j,i))/dx(i-1) + &
-								(max(vt(k,j,i),0._wp)*psi_old(k,j,i)-&
-								  min(vt(k,j-1,i),0._wp)*psi_old(k,j,i))/dy(j-1) + &
-								(max(wt(k,j,i),0._wp)*psi_old(k,j,i)-&
-								  min(wt(k-1,j,i),0._wp)*psi_old(k,j,i))/dz(k-1) &
-								  +small))
-								  
-						beta_i_up(k,j,i)=(psi_i_max(k,j,i)-psi_old(k,j,i)) / denom1
-							
-								  
-						beta_i_down(k,j,i)=(psi_old(k,j,i)-psi_i_min(k,j,i)) / denom2
-											
-
-						beta_j_up(k,j,i)=(psi_j_max(k,j,i)-psi_old(k,j,i)) / denom1
-								  
-						beta_j_down(k,j,i)=(psi_old(k,j,i)-psi_j_min(k,j,i)) / denom2
-
-						beta_k_up(k,j,i)=(psi_k_max(k,j,i)-psi_old(k,j,i)) / denom1
-								  
-						beta_k_down(k,j,i)=(psi_old(k,j,i)-psi_k_min(k,j,i)) / denom2
+						denom1 = dt * ( &
+							( max(ut(k,j,i-1),0._wp) * rhoan(k) * psi_old(k,j,i-1) - &
+							  min(ut(k,j,i  ),0._wp) * rhoan(k) * psi_old(k,j,i+1) ) / dxn(i) + &
+							( max(vt(k,j-1,i),0._wp) * rhoan(k) * psi_old(k,j-1,i) - &
+							  min(vt(k,j  ,i),0._wp) * rhoan(k) * psi_old(k,j+1,i) ) / dyn(j) + &
+							( max(wt(k-1,j,i),0._wp) * rhoa(k-1) * psi_old(k-1,j,i) - &
+							  min(wt(k  ,j,i),0._wp) * rhoa(k  ) * psi_old(k+1,j,i) ) / dzn(k) &
+							) + small
+    								  							
+						denom2 = dt * ( &						
+							( max(ut(k,j,i  ),0._wp) * rhoan(k) * psi_old(k,j,i) - &
+							  min(ut(k,j,i-1),0._wp) * rhoan(k) * psi_old(k,j,i) ) / dxn(i) + &
+							( max(vt(k,j  ,i),0._wp) * rhoan(k) * psi_old(k,j,i) - &
+							  min(vt(k,j-1,i),0._wp) * rhoan(k) * psi_old(k,j,i) ) / dyn(j) + &
+							( max(wt(k  ,j,i),0._wp) * rhoa(k  ) * psi_old(k,j,i) - &
+							  min(wt(k-1,j,i),0._wp) * rhoa(k-1) * psi_old(k,j,i) ) / dzn(k) &
+							+ small )
+    
+						beta_up(k,j,i) = rhoan(k) * &
+							(psi_max(k,j,i)-psi_old(k,j,i)) / denom1
+						
+						beta_down(k,j,i) = rhoan(k) * &
+							(psi_old(k,j,i)-psi_min(k,j,i)) / denom2
+    						
 					enddo
 				enddo
 			enddo 
@@ -646,17 +622,9 @@
 			! exchange halos for beta_i_up, down
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_i_up,0._wp,0._wp,dims,coords)
+													beta_up,0._wp,0._wp,dims,coords)
 			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_i_down,0._wp,0._wp,dims,coords)
-			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_j_up,0._wp,0._wp,dims,coords)
-			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_j_down,0._wp,0._wp,dims,coords)
-			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_k_up,0._wp,0._wp,dims,coords)
-			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_k_down,0._wp,0._wp,dims,coords)
+													beta_down,0._wp,0._wp,dims,coords)
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 								
@@ -667,19 +635,22 @@
 			do i=1,ip
 				do j=1,jp
 					do k=1,kp			
-						ut_sav(k,j,i)=min(1._wp,beta_i_down(k,j,i), &
-										 beta_i_up(k,j,i+1))*max(ut(k,j,i),0._wp) + &
-									  min(1._wp,beta_i_up(k,j,i), &
-									     beta_i_down(k,j,i+1))*min(ut(k,j,i),0._wp)
-						vt_sav(k,j,i)=min(1._wp,beta_j_down(k,j,i), &
-										 beta_j_up(k,j+1,i))*max(vt(k,j,i),0._wp) + &
-									  min(1._wp,beta_j_up(k,j,i), &
-									     beta_j_down(k,j+1,i))*min(vt(k,j,i),0._wp)
-						wt_sav(k,j,i)=min(1._wp,beta_k_down(k,j,i), &
-										 beta_k_up(k+1,j,i))*max(wt(k,j,i),0._wp) + &
-									  min(1._wp,beta_k_up(k,j,i), &
-									     beta_k_down(k+1,j,i))*min(wt(k,j,i),0._wp)
-					enddo
+						ut_sav(k,j,i) = &
+							min(1._wp,beta_down(k,j,i),beta_up(k,j,i+1)) * &
+								max(ut(k,j,i),0._wp) + &
+							min(1._wp,beta_up(k,j,i),beta_down(k,j,i+1)) * &
+								min(ut(k,j,i),0._wp)
+						vt_sav(k,j,i) = &
+							min(1._wp,beta_down(k,j,i),beta_up(k,j+1,i)) * &
+								max(vt(k,j,i),0._wp) + &
+							min(1._wp,beta_up(k,j,i),beta_down(k,j+1,i)) * &
+								min(vt(k,j,i),0._wp)
+						wt_sav(k,j,i) = &
+							min(1._wp,beta_down(k,j,i),beta_up(k+1,j,i)) * &
+								max(wt(k,j,i),0._wp) + &
+							min(1._wp,beta_up(k,j,i),beta_down(k+1,j,i)) * &
+								min(wt(k,j,i),0._wp)
+        				enddo
 				enddo
 			enddo 
 !$omp end simd
@@ -882,9 +853,9 @@
 		w_store1, w_store2
 	real(wp), dimension(-r_h+1:kp+r_h,-r_h+1:jp+r_h,-r_h+1:ip+r_h), target :: psi_store
 	real(wp), dimension(-r_h+1:kp+r_h,-r_h+1:jp+r_h,-r_h+1:ip+r_h) :: &
-						psi_k_max,psi_k_min, &
-						beta_k_up, beta_k_down
-	real(wp) :: g_bar1, g_bar2, g_bar3
+						psi_max,psi_min, &
+						beta_up, beta_down
+	real(wp) :: g_bar3
 
 	! has to be positive definite
 	minlocal=min(minval(psi_in(:,:,:)),lbc,ubc)
@@ -936,8 +907,8 @@
 						! Generalised G = rho factors
 						!
 						! u and v are at scalar vertical level k
-						g_bar1 = rhoan(k)
-						g_bar2 = rhoan(k)
+! 						g_bar1 = rhoan(k)
+! 						g_bar2 = rhoan(k)
 						
 						! w is between scalar levels k and k+1
 						g_bar3 = 0.5_wp*(rhoan(k)+rhoan(k+1))
@@ -1025,13 +996,15 @@
 !$omp simd	
 			do i=1,ip
 				do j=1,jp
-					do k=1,kp			
-						! z direction - note: should the last q in the max/min be q+1?
-						psi_k_max(k,j,i)=max(psi(k-1,j,i),psi(k,j,i),psi(k+1,j,i), &
-									psi_old(k-1,j,i),psi_old(k,j,i),psi_old(k+1,j,i))
-					
-						psi_k_min(k,j,i)=min(psi(k-1,j,i),psi(k,j,i),psi(k+1,j,i), &
-									psi_old(k-1,j,i),psi_old(k,j,i),psi_old(k+1,j,i))
+					do k=1,kp
+						psi_max(k,j,i) = max( &
+							psi(k-1,j,i), psi(k,j,i), psi(k+1,j,i), &
+							psi_old(k-1,j,i), psi_old(k,j,i), psi_old(k+1,j,i) )
+			
+						psi_min(k,j,i) = min( &
+							psi(k-1,j,i), psi(k,j,i), psi(k+1,j,i), &
+							psi_old(k-1,j,i), psi_old(k,j,i), psi_old(k+1,j,i) )
+			
 					enddo
 				enddo
 			enddo
@@ -1048,21 +1021,27 @@
 !$omp simd	
 			do i=1,ip
 				do j=1,jp
-					do k=1,kp		
-						denom1=(dt*((max(wt(k-1,j,i),0._wp)*psi_old(k-1,j,i)-&
-								  min(wt(k,j,i),0._wp)*psi_old(k+1,j,i))/dz(k-1) &
-								  +small))
-								  
-						denom2=(dt*((max(wt(k,j,i),0._wp)*psi_old(k,j,i)-&
-								  min(wt(k-1,j,i),0._wp)*psi_old(k,j,i))/dz(k-1) &
-								  +small))
-								  
-						beta_k_up(k,j,i)=(psi_k_max(k,j,i)-psi_old(k,j,i)) / denom1
-								  
-						beta_k_down(k,j,i)=(psi_old(k,j,i)-psi_k_min(k,j,i)) / denom2
+					do k=1,kp
+			
+						denom1 = dt * ( &
+							max(wt(k-1,j,i),0._wp) * rhoa(k-1) * psi_old(k-1,j,i) - &
+							min(wt(k  ,j,i),0._wp) * rhoa(k  ) * psi_old(k+1,j,i) &
+							) / dzn(k) + small
+			
+						denom2 = dt * ( &
+							max(wt(k  ,j,i),0._wp) * rhoa(k  ) * psi_old(k,j,i) - &
+							min(wt(k-1,j,i),0._wp) * rhoa(k-1) * psi_old(k,j,i) &
+							) / dzn(k) + small
+			
+						beta_up(k,j,i) = rhoan(k) * &
+							(psi_max(k,j,i)-psi_old(k,j,i)) / denom1
+			
+						beta_down(k,j,i) = rhoan(k) * &
+							(psi_old(k,j,i)-psi_min(k,j,i)) / denom2
+			
 					enddo
 				enddo
-			enddo 
+			enddo
 !$omp end simd
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -1071,11 +1050,14 @@
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			! exchange halos for beta_i_up, down
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			call exchange_along_z(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_k_up,0._wp,0._wp,dims,coords)
-			call exchange_along_z(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_k_down,0._wp,0._wp,dims,coords)
-			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			call exchange_along_z(comm3d, id, kp, jp, ip, &
+				r_h,r_h,r_h,r_h,r_h,r_h, &
+				beta_up,0._wp,0._wp,dims,coords)
+			
+			call exchange_along_z(comm3d, id, kp, jp, ip, &
+				r_h,r_h,r_h,r_h,r_h,r_h, &
+				beta_down,0._wp,0._wp,dims,coords)
+    			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 								
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1084,14 +1066,17 @@
 !$omp simd	
 			do i=1,ip
 				do j=1,jp
-					do k=1,kp			
-						wt_sav(k,j,i)=min(1._wp,beta_k_down(k,j,i), &
-										 beta_k_up(k+1,j,i))*max(wt(k,j,i),0._wp) + &
-									  min(1._wp,beta_k_up(k,j,i), &
-									     beta_k_down(k+1,j,i))*min(wt(k,j,i),0._wp)
+					do k=1,kp
+			
+						wt_sav(k,j,i) = &
+							min(1._wp, beta_down(k,j,i), beta_up(k+1,j,i)) * &
+								max(wt(k,j,i),0._wp) + &
+							min(1._wp, beta_up(k,j,i), beta_down(k+1,j,i)) * &
+								min(wt(k,j,i),0._wp)
+			
 					enddo
 				enddo
-			enddo 
+			enddo
 !$omp end simd
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -1313,10 +1298,8 @@
 		w_store1, w_store2
 	real(wp), dimension(-r_h+1:kp+r_h,-r_h+1:jp+r_h,-r_h+1:ip+r_h,1:nq), target :: psi_store
 	real(wp), dimension(-r_h+1:kp+r_h,-r_h+1:jp+r_h,-r_h+1:ip+r_h) :: &
-						psi_i_max, psi_i_min, psi_j_max,psi_j_min,psi_k_max,psi_k_min, &
-						beta_i_up, beta_i_down,&
-						beta_j_up, beta_j_down,&
-						beta_k_up, beta_k_down
+						psi_max, psi_min, &
+						beta_up, beta_down
 	real(wp) :: g_bar1, g_bar2, g_bar3
 
 	! has to be positive definite
@@ -1601,43 +1584,26 @@
 			do i=1,ip
 				do j=1,jp
 					do k=1,kp			
-						! x direction - note: should the last q in the max/min be q+1?
-						psi_i_max(k,j,i)=max(psi(k,j,i-1),psi(k,j,i),psi(k,j,i+1), &
-									psi_old(k,j,i-1),psi_old(k,j,i),psi_old(k,j,i+1))
-					
-						psi_i_min(k,j,i)=min(psi(k,j,i-1),psi(k,j,i),psi(k,j,i+1), &
-									psi_old(k,j,i-1),psi_old(k,j,i),psi_old(k,j,i+1))
-					enddo
-				enddo
-			enddo
-!$omp end simd
-
-!$omp simd	
-			do i=1,ip
-				do j=1,jp
-					do k=1,kp			
-						! y direction - note: should the last q in the max/min be q+1?
-						psi_j_max(k,j,i)=max(psi(k,j-1,i),psi(k,j,i),psi(k,j+1,i), &
-									psi_old(k,j-1,i),psi_old(k,j,i),psi_old(k,j+1,i))
-					
-						psi_j_min(k,j,i)=min(psi(k,j-1,i),psi(k,j,i),psi(k,j+1,i), &
-									psi_old(k,j-1,i),psi_old(k,j,i),psi_old(k,j+1,i))
-					enddo
-				enddo
-			enddo
-!$omp end simd
-
-!$omp simd	
-			do i=1,ip
-				do j=1,jp
-					do k=1,kp			
-						! z direction - note: should the last q in the max/min be q+1?
-						psi_k_max(k,j,i)=max(psi(k-1,j,i),psi(k,j,i),psi(k+1,j,i), &
-									psi_old(k-1,j,i),psi_old(k,j,i),psi_old(k+1,j,i))
-					
-						psi_k_min(k,j,i)=min(psi(k-1,j,i),psi(k,j,i),psi(k+1,j,i), &
-									psi_old(k-1,j,i),psi_old(k,j,i),psi_old(k+1,j,i))
-					enddo
+						psi_max(k,j,i) = max( &
+							psi(k,j,i), &
+							psi(k,j,i-1), psi(k,j,i+1), &
+							psi(k,j-1,i), psi(k,j+1,i), &
+							psi(k-1,j,i), psi(k+1,j,i), &
+							psi_old(k,j,i), &
+							psi_old(k,j,i-1), psi_old(k,j,i+1), &
+							psi_old(k,j-1,i), psi_old(k,j+1,i), &
+							psi_old(k-1,j,i), psi_old(k+1,j,i) )
+						
+						psi_min(k,j,i) = min( &
+							psi(k,j,i), &
+							psi(k,j,i-1), psi(k,j,i+1), &
+							psi(k,j-1,i), psi(k,j+1,i), &
+							psi(k-1,j,i), psi(k+1,j,i), &
+							psi_old(k,j,i), &
+							psi_old(k,j,i-1), psi_old(k,j,i+1), &
+							psi_old(k,j-1,i), psi_old(k,j+1,i), &
+							psi_old(k-1,j,i), psi_old(k+1,j,i) )
+    					enddo
 				enddo
 			enddo
 !$omp end simd
@@ -1654,35 +1620,30 @@
 			do i=1,ip
 				do j=1,jp
 					do k=1,kp		
-						denom1=(dt*((max(ut(k,j,i-1),0._wp)*psi_old(k,j,i-1)- &
-								  min(ut(k,j,i),0._wp)*psi_old(k,j,i+1))/dx(i-1)+ &
-							    (max(vt(k,j-1,i),0._wp)*psi_old(k,j-1,i)-&
-								  min(vt(k,j,i),0._wp)*psi_old(k,j+1,i))/dy(j-1) + &
-							    (max(wt(k-1,j,i),0._wp)*psi_old(k-1,j,i)-&
-								  min(wt(k,j,i),0._wp)*psi_old(k+1,j,i))/dz(k-1) &
-								  +small))
-								  
-						denom2=(dt*((max(ut(k,j,i),0._wp)*psi_old(k,j,i)- &
-							      min(ut(k,j,i-1),0._wp)*psi_old(k,j,i))/dx(i-1) + &
-								(max(vt(k,j,i),0._wp)*psi_old(k,j,i)-&
-								  min(vt(k,j-1,i),0._wp)*psi_old(k,j,i))/dy(j-1) + &
-								(max(wt(k,j,i),0._wp)*psi_old(k,j,i)-&
-								  min(wt(k-1,j,i),0._wp)*psi_old(k,j,i))/dz(k-1) &
-								  +small))
-								  
-						beta_i_up(k,j,i)=(psi_i_max(k,j,i)-psi_old(k,j,i)) / denom1
-							
-								  
-						beta_i_down(k,j,i)=(psi_old(k,j,i)-psi_i_min(k,j,i)) / denom2
-											
-
-						beta_j_up(k,j,i)=(psi_j_max(k,j,i)-psi_old(k,j,i)) / denom1
-								  
-						beta_j_down(k,j,i)=(psi_old(k,j,i)-psi_j_min(k,j,i)) / denom2
-
-						beta_k_up(k,j,i)=(psi_k_max(k,j,i)-psi_old(k,j,i)) / denom1
-								  
-						beta_k_down(k,j,i)=(psi_old(k,j,i)-psi_k_min(k,j,i)) / denom2
+						denom1 = dt * ( &
+							( max(ut(k,j,i-1),0._wp) * rhoan(k) * psi_old(k,j,i-1) - &
+							  min(ut(k,j,i  ),0._wp) * rhoan(k) * psi_old(k,j,i+1) ) / dxn(i) + &
+							( max(vt(k,j-1,i),0._wp) * rhoan(k) * psi_old(k,j-1,i) - &
+							  min(vt(k,j  ,i),0._wp) * rhoan(k) * psi_old(k,j+1,i) ) / dyn(j) + &
+							( max(wt(k-1,j,i),0._wp) * rhoa(k-1) * psi_old(k-1,j,i) - &
+							  min(wt(k  ,j,i),0._wp) * rhoa(k  ) * psi_old(k+1,j,i) ) / dzn(k) &
+							) + small	
+    							  							
+						denom2 = dt * ( &						
+							( max(ut(k,j,i  ),0._wp) * rhoan(k) * psi_old(k,j,i) - &
+							  min(ut(k,j,i-1),0._wp) * rhoan(k) * psi_old(k,j,i) ) / dxn(i) + &
+							( max(vt(k,j  ,i),0._wp) * rhoan(k) * psi_old(k,j,i) - &
+							  min(vt(k,j-1,i),0._wp) * rhoan(k) * psi_old(k,j,i) ) / dyn(j) + &
+							( max(wt(k  ,j,i),0._wp) * rhoa(k  ) * psi_old(k,j,i) - &
+							  min(wt(k-1,j,i),0._wp) * rhoa(k-1) * psi_old(k,j,i) ) / dzn(k) &
+							+ small )
+    
+						beta_up(k,j,i) = rhoan(k) * &
+							(psi_max(k,j,i)-psi_old(k,j,i)) / denom1
+						
+						beta_down(k,j,i) = rhoan(k) * &
+							(psi_old(k,j,i)-psi_min(k,j,i)) / denom2
+    						
 					enddo
 				enddo
 			enddo 
@@ -1695,17 +1656,9 @@
 			! exchange halos for beta_i_up, down
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_i_up,0._wp,0._wp,dims,coords)
+													beta_up,0._wp,0._wp,dims,coords)
 			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_i_down,0._wp,0._wp,dims,coords)
-			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_j_up,0._wp,0._wp,dims,coords)
-			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_j_down,0._wp,0._wp,dims,coords)
-			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_k_up,0._wp,0._wp,dims,coords)
-			call exchange_along_dim(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_k_down,0._wp,0._wp,dims,coords)
+													beta_down,0._wp,0._wp,dims,coords)
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 								
@@ -1716,19 +1669,22 @@
 			do i=1,ip
 				do j=1,jp
 					do k=1,kp			
-						ut_sav(k,j,i)=min(1._wp,beta_i_down(k,j,i), &
-										 beta_i_up(k,j,i+1))*max(ut(k,j,i),0._wp) + &
-									  min(1._wp,beta_i_up(k,j,i), &
-									     beta_i_down(k,j,i+1))*min(ut(k,j,i),0._wp)
-						vt_sav(k,j,i)=min(1._wp,beta_j_down(k,j,i), &
-										 beta_j_up(k,j+1,i))*max(vt(k,j,i),0._wp) + &
-									  min(1._wp,beta_j_up(k,j,i), &
-									     beta_j_down(k,j+1,i))*min(vt(k,j,i),0._wp)
-						wt_sav(k,j,i)=min(1._wp,beta_k_down(k,j,i), &
-										 beta_k_up(k+1,j,i))*max(wt(k,j,i),0._wp) + &
-									  min(1._wp,beta_k_up(k,j,i), &
-									     beta_k_down(k+1,j,i))*min(wt(k,j,i),0._wp)
-					enddo
+						ut_sav(k,j,i) = &
+							min(1._wp,beta_down(k,j,i),beta_up(k,j,i+1)) * &
+								max(ut(k,j,i),0._wp) + &
+							min(1._wp,beta_up(k,j,i),beta_down(k,j,i+1)) * &
+								min(ut(k,j,i),0._wp)
+						vt_sav(k,j,i) = &
+							min(1._wp,beta_down(k,j,i),beta_up(k,j+1,i)) * &
+								max(vt(k,j,i),0._wp) + &
+							min(1._wp,beta_up(k,j,i),beta_down(k,j+1,i)) * &
+								min(vt(k,j,i),0._wp)
+						wt_sav(k,j,i) = &
+							min(1._wp,beta_down(k,j,i),beta_up(k+1,j,i)) * &
+								max(wt(k,j,i),0._wp) + &
+							min(1._wp,beta_up(k,j,i),beta_down(k+1,j,i)) * &
+								min(wt(k,j,i),0._wp)
+        				enddo
 				enddo
 			enddo 
 !$omp end simd
@@ -1857,8 +1813,8 @@
 		w_store1, w_store2
 	real(wp), dimension(-r_h+1:kp+r_h,-r_h+1:jp+r_h,-r_h+1:ip+r_h,1:nq), target :: psi_store
 	real(wp), dimension(-r_h+1:kp+r_h,-r_h+1:jp+r_h,-r_h+1:ip+r_h) :: &
-						psi_k_max,psi_k_min, &
-						beta_k_up, beta_k_down
+						psi_max,psi_min, &
+						beta_up, beta_down
 	real(wp) :: g_bar1,g_bar2,g_bar3
 
 	! has to be positive definite
@@ -2005,11 +1961,13 @@
 				do j=1,jp
 					do k=1,kp			
 						! z direction - note: should the last q in the max/min be q+1?
-						psi_k_max(k,j,i)=max(psi(k-1,j,i),psi(k,j,i),psi(k+1,j,i), &
-									psi_old(k-1,j,i),psi_old(k,j,i),psi_old(k+1,j,i))
-					
-						psi_k_min(k,j,i)=min(psi(k-1,j,i),psi(k,j,i),psi(k+1,j,i), &
-									psi_old(k-1,j,i),psi_old(k,j,i),psi_old(k+1,j,i))
+						psi_max(k,j,i) = max( &
+							psi(k-1,j,i), psi(k,j,i), psi(k+1,j,i), &
+							psi_old(k-1,j,i), psi_old(k,j,i), psi_old(k+1,j,i) )
+						
+						psi_min(k,j,i) = min( &
+							psi(k-1,j,i), psi(k,j,i), psi(k+1,j,i), &
+							psi_old(k-1,j,i), psi_old(k,j,i), psi_old(k+1,j,i) )
 					enddo
 				enddo
 			enddo
@@ -2027,17 +1985,21 @@
 			do i=1,ip
 				do j=1,jp
 					do k=1,kp		
-						denom1=(dt*((max(wt(k-1,j,i),0._wp)*psi_old(k-1,j,i)-&
-								  min(wt(k,j,i),0._wp)*psi_old(k+1,j,i))/dz(k-1) &
-								  +small))
-								  
-						denom2=(dt*((max(wt(k,j,i),0._wp)*psi_old(k,j,i)-&
-								  min(wt(k-1,j,i),0._wp)*psi_old(k,j,i))/dz(k-1) &
-								  +small))
-								  
-						beta_k_up(k,j,i)=(psi_k_max(k,j,i)-psi_old(k,j,i)) / denom1
-								  
-						beta_k_down(k,j,i)=(psi_old(k,j,i)-psi_k_min(k,j,i)) / denom2
+						denom1 = dt * ( &
+							max(wt(k-1,j,i),0._wp) * rhoa(k-1) * psi_old(k-1,j,i) - &
+							min(wt(k  ,j,i),0._wp) * rhoa(k  ) * psi_old(k+1,j,i) &
+							) / dzn(k) + small
+    								  
+						denom2 = dt * ( &
+							max(wt(k  ,j,i),0._wp) * rhoa(k  ) * psi_old(k,j,i) - &
+							min(wt(k-1,j,i),0._wp) * rhoa(k-1) * psi_old(k,j,i) &
+							) / dzn(k) + small
+    								  
+						beta_up(k,j,i) = rhoan(k) * &
+							(psi_max(k,j,i)-psi_old(k,j,i)) / denom1
+						
+						beta_down(k,j,i) = rhoan(k) * &
+							(psi_old(k,j,i)-psi_min(k,j,i)) / denom2
 					enddo
 				enddo
 			enddo 
@@ -2050,9 +2012,9 @@
 			! exchange halos for beta_i_up, down
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			call exchange_along_z(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_k_up,0._wp,0._wp,dims,coords)
+													beta_up,0._wp,0._wp,dims,coords)
 			call exchange_along_z(comm3d, id, kp, jp, ip, r_h,r_h,r_h,r_h,r_h,r_h, &
-													beta_k_down,0._wp,0._wp,dims,coords)
+													beta_down,0._wp,0._wp,dims,coords)
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 								
@@ -2063,10 +2025,11 @@
 			do i=1,ip
 				do j=1,jp
 					do k=1,kp			
-						wt_sav(k,j,i)=min(1._wp,beta_k_down(k,j,i), &
-										 beta_k_up(k+1,j,i))*max(wt(k,j,i),0._wp) + &
-									  min(1._wp,beta_k_up(k,j,i), &
-									     beta_k_down(k+1,j,i))*min(wt(k,j,i),0._wp)
+						wt_sav(k,j,i) = &
+							min(1._wp, beta_down(k,j,i), beta_up(k+1,j,i)) * &
+								max(wt(k,j,i),0._wp) + &
+							min(1._wp, beta_up(k,j,i), beta_down(k+1,j,i)) * &
+								min(wt(k,j,i),0._wp)
 					enddo
 				enddo
 			enddo 
