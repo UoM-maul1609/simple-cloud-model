@@ -298,7 +298,7 @@
 
                         rad=sqrt(rad)
                         r=1._wp
-                        if(rad<=1000._wp) then
+                        if(rad<=1900._wp) then
                             q(k-kpstart,j-jpstart,i-ipstart,1)= &
                                 q(k-kpstart,j-jpstart,i-ipstart,1)+r/30._wp
                             q(k-kpstart,j-jpstart,i-ipstart,2)= &
