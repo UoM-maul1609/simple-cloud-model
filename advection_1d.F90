@@ -145,7 +145,7 @@
 	real(wp), dimension(-r_h+1:kp+r_h) :: &
 						psi_k_max,psi_k_min, &
 						beta_k_up, beta_k_down
-	real(wp) :: g_bar1, g_bar2, g_bar3	
+	real(wp) :: g_bar3	
 
 	! has to be positive definite
 	minlocal=minval(psi_in(1:kp))
@@ -197,8 +197,8 @@
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 				! G at the u and v faces: density varies only vertically,
 				! so both adjacent scalar cells have rhoan(k)
-				g_bar1 = rhoan(k)
-				g_bar2 = rhoan(k)
+! 				g_bar1 = rhoan(k)
+! 				g_bar2 = rhoan(k)
 				
 				! G averaged to the w face between scalar levels k and k+1
 				g_bar3 = 0.5_wp*(rhoan(k)+rhoan(k+1))
@@ -492,6 +492,7 @@
 	real(wp), dimension(-r_h+1:kp+r_h) :: &
 						psi_k_max,psi_k_min, &
 						beta_k_up, beta_k_down
+	real(wp) :: g_bar3
 	
 
 	! has to be positive definite
@@ -545,7 +546,13 @@
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 ! calculate the anti-diffusive velocities                        !
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+				! G at the u and v faces: density varies only vertically,
+				! so both adjacent scalar cells have rhoan(k)
+! 				g_bar1 = rhoan(k)
+! 				g_bar2 = rhoan(k)
+				
+				! G averaged to the w face between scalar levels k and k+1
+				g_bar3 = 0.5_wp*(rhoan(k)+rhoan(k+1))
 
 
 
@@ -573,16 +580,19 @@
                 ! last update of equation 13
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 ! w wind:
-                wt_sav(k)=(abs(wt(k))*dz(k)-dt*wt(k)*wt(k) ) * &
-                    (psi_old(k+1)-psi_old(k) ) / &
-                    (psi_old(k+1)+psi_old(k)+small) /dzn(k) - u_j_bar3
+				wt_sav(k) = &
+					( abs(wt(k))*dz(k) - &
+					  dt*(rhoa(k)/g_bar3)*wt(k)*wt(k) ) * &
+					(psi_old(k+1)-psi_old(k)) / &
+					(psi_old(k+1)+psi_old(k)+small) / dzn(k) - u_j_bar3
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 ! last update of eq 38 smolarkiewicz 1984
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                wt_sav(k)=wt_sav(k) - 0.25_wp*dt*wt(k) * &
-                 ( (wt(k+1)-wt(k-1))/(dz(k-1))+u_div3 )
+				wt_sav(k) = wt_sav(k) - 0.25_wp*dt*wt(k) * &
+					( ( rhoa(k+1)*wt(k+1) - &
+						rhoa(k-1)*wt(k-1) ) / dz(k-1) + u_div3 ) / g_bar3    
                 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
